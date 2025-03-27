@@ -1,42 +1,39 @@
-from flask import Flask, request, send_file, render_template
+from flask import Flask, request, render_template, send_file
 from rembg import remove
-from io import BytesIO
 import os
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB limit
 
-# Configure upload folder
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
-@app.route('/remove-bg', methods=['POST'])
-def remove_background():
-    if 'image' not in request.files:
-        return 'No image uploaded', 400
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return 'No file uploaded', 400
     
-    file = request.files['image']
+    file = request.files['file']
     if file.filename == '':
         return 'No selected file', 400
-
-    # Read and process the image
-    input_image = file.read()
-    output_image = remove(input_image)
     
-    # Prepare the processed image for download
-    output = BytesIO(output_image)
-    output.seek(0)
-    
-    return send_file(
-        output,
-        mimetype='image/png',
-        as_attachment=True,
-        download_name='output.png'
-    )
+    if file:
+        input_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        output_path = 'output.png'
+        
+        file.save(input_path)
+        
+        with open(input_path, 'rb') as i:
+            input_image = i.read()
+            output = remove(input_image)
+            
+        with open(output_path, 'wb') as o:
+            o.write(output)
+        
+        return send_file(output_path, mimetype='image/png')
 
 if __name__ == '__main__':
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     app.run(debug=True)
