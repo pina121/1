@@ -1,220 +1,146 @@
 import os
 import sys
 import traceback
-from PIL import Image
+import cv2
 import numpy as np
+from PIL import Image
 
-# Try multiple background removal methods
-def remove_background_multi_method(input_path, output_path=None):
+def install_dependencies():
+    """Install required dependencies"""
+    os.system('pip install opencv-python-headless pillow numpy')
+
+def remove_background_advanced(input_path, output_path=None):
     """
-    Attempt background removal using multiple methods with fallback options.
+    Advanced background removal with multiple techniques
     
     Args:
-        input_path (str): Path to the input image file
-        output_path (str, optional): Path to save the output image
+        input_path (str): Path to input image
+        output_path (str, optional): Path to save output image
     
     Returns:
-        str: Path to the output image, or None if removal fails
+        str: Path to output image or None if failed
     """
-    # Import libraries here to handle potential import errors
-    try:
-        from rembg import remove
-    except ImportError:
-        print("Installing required libraries...")
-        os.system('pip install rembg pillow')
-        from rembg import remove
+    # Ensure dependencies are installed
+    install_dependencies()
 
     # Validate input file
     if not os.path.exists(input_path):
         print(f"Error: Input file {input_path} does not exist.")
         return None
-    
-    # Generate output path if not provided
+
+    # Generate default output path if not provided
     if output_path is None:
         base, ext = os.path.splitext(input_path)
         output_path = f"{base}_nobg.png"
-    
-    # List of methods to try
-    methods = [
-        _remove_background_rembg,
-        _remove_background_pillow,
-        _remove_background_numpy
-    ]
-    
-    # Try each method
-    for method in methods:
-        try:
-            result = method(input_path, output_path)
-            if result:
-                print(f"Background removed successfully using {method.__name__}")
-                return result
-        except Exception as e:
-            print(f"Method {method.__name__} failed: {e}")
-    
-    print("All background removal methods failed.")
-    return None
-
-def _remove_background_rembg(input_path, output_path):
-    """
-    Remove background using rembg library
-    """
-    from rembg import remove
-    
-    try:
-        # Open the input image
-        with open(input_path, 'rb') as input_file:
-            # Read input image
-            input_image = input_file.read()
-            
-            # Remove background
-            output = remove(input_image)
-            
-            # Save output image
-            with open(output_path, 'wb') as output_file:
-                output_file.write(output)
-        
-        return output_path
-    except Exception as e:
-        print(f"Rembg method error: {e}")
-        traceback.print_exc()
-        return None
-
-def _remove_background_pillow(input_path, output_path):
-    """
-    Fallback method using Pillow to attempt background removal
-    """
-    from PIL import Image, ImageOps
 
     try:
-        # Open the image
-        image = Image.open(input_path)
+        # Read image
+        image = cv2.imread(input_path)
         
-        # Convert to RGBA if not already
-        image = image.convert("RGBA")
-        
-        # Create a blank white background
-        background = Image.new("RGBA", image.size, (255, 255, 255, 0))
-        
-        # Use alpha composite
-        result = Image.alpha_composite(background, image)
-        
-        # Save the result
-        result.save(output_path)
-        
-        return output_path
-    except Exception as e:
-        print(f"Pillow method error: {e}")
-        traceback.print_exc()
-        return None
+        if image is None:
+            print(f"Failed to read image: {input_path}")
+            return None
 
-def _remove_background_numpy(input_path, output_path):
-    """
-    Advanced fallback method using NumPy for background removal
-    """
-    try:
-        # Open image
-        image = Image.open(input_path)
+        # Convert to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
-        # Convert to numpy array
-        img_array = np.array(image)
+        # Apply GaussianBlur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
-        # Create a mask of non-white pixels
-        if len(img_array.shape) == 3:
-            # For color images
-            mask = (img_array[:,:,0] < 240) & \
-                   (img_array[:,:,1] < 240) & \
-                   (img_array[:,:,2] < 240)
-        else:
-            # For grayscale images
-            mask = img_array < 240
+        # Use Otsu's thresholding
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         
-        # Create a transparent image
-        result = np.zeros((img_array.shape[0], img_array.shape[1], 4), dtype=np.uint8)
+        # Find contours
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Copy original image where mask is True
-        if len(img_array.shape) == 3:
-            result[:,:,:3] = img_array
-        else:
-            result[:,:,0] = img_array
-            result[:,:,1] = img_array
-            result[:,:,2] = img_array
+        # Create mask
+        mask = np.zeros(gray.shape, np.uint8)
         
-        # Set alpha channel based on mask
-        result[:,:,3] = np.where(mask, 255, 0)
+        # Draw contours on mask
+        cv2.drawContours(mask, contours, -1, (255, 255, 255), -1)
         
-        # Convert back to PIL and save
-        output_image = Image.fromarray(result)
-        output_image.save(output_path)
+        # Invert mask
+        mask_inv = cv2.bitwise_not(mask)
         
+        # Create transparent background
+        b, g, r = cv2.split(image)
+        rgba = [b, g, r, mask_inv]
+        
+        # Merge channels
+        dst = cv2.merge(rgba, 4)
+        
+        # Save result
+        cv2.imwrite(output_path, dst)
+        
+        print(f"Background removed successfully. Saved to {output_path}")
         return output_path
+
     except Exception as e:
-        print(f"NumPy method error: {e}")
+        print(f"Background removal failed: {e}")
         traceback.print_exc()
         return None
 
 def batch_remove_background(input_directory, output_directory=None):
     """
-    Remove backgrounds from all images in a directory.
+    Remove backgrounds from all images in a directory
     """
     # Validate input directory
     if not os.path.isdir(input_directory):
         print(f"Error: {input_directory} is not a valid directory.")
         return
     
-    # Create output directory if not provided
+    # Create output directory
     if output_directory is None:
         output_directory = os.path.join(input_directory, 'no_background')
     
-    # Create output directory if it doesn't exist
     os.makedirs(output_directory, exist_ok=True)
     
     # Supported image extensions
-    image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif']
+    image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.webp']
     
-    # Track successful and failed removals
+    # Process images
     successful = 0
     failed = 0
     
-    # Process each file in the input directory
     for filename in os.listdir(input_directory):
-        # Check if file is an image
+        # Check file extension
         if any(filename.lower().endswith(ext) for ext in image_extensions):
             input_path = os.path.join(input_directory, filename)
             
-            # Generate output filename
+            # Generate output path
             base, ext = os.path.splitext(filename)
             output_path = os.path.join(output_directory, f"{base}_nobg.png")
             
-            # Remove background with multi-method approach
-            result = remove_background_multi_method(input_path, output_path)
+            # Try to remove background
+            result = remove_background_advanced(input_path, output_path)
             
             if result:
                 successful += 1
             else:
                 failed += 1
-                print(f"Failed to remove background from {filename}")
+                print(f"Failed to process: {filename}")
     
     # Print summary
-    print(f"\nBatch Processing Summary:")
-    print(f"Total Images Processed: {successful + failed}")
-    print(f"Successful Removals: {successful}")
-    print(f"Failed Removals: {failed}")
+    print("\nBackground Removal Summary:")
+    print(f"Total Images: {successful + failed}")
+    print(f"Successfully Processed: {successful}")
+    print(f"Failed: {failed}")
 
 def main():
     """
-    Main function to handle command-line usage of the script.
+    Main function to handle command-line usage
     """
-    # Check if script is run with arguments
+    # Check arguments
     if len(sys.argv) < 2:
         print("Usage:")
         print("  Single image: python script.py <input_image_path>")
         print("  Batch processing: python script.py batch <input_directory>")
         sys.exit(1)
     
-    # Install dependencies first
-    os.system('pip install rembg pillow numpy')
+    # Install dependencies
+    install_dependencies()
     
-    # Check if batch processing is requested
+    # Process based on arguments
     if sys.argv[1] == 'batch':
         if len(sys.argv) < 3:
             print("Please provide an input directory for batch processing.")
@@ -222,7 +148,7 @@ def main():
         batch_remove_background(sys.argv[2])
     else:
         # Process single image
-        result = remove_background_multi_method(sys.argv[1])
+        result = remove_background_advanced(sys.argv[1])
         if not result:
             print("Failed to remove background. Please check the image and try again.")
             sys.exit(1)
@@ -230,7 +156,6 @@ def main():
 if __name__ == "__main__":
     main()
 
-# Detailed error handling comments
-# Uses multiple fallback methods for background removal
-# Supports various image formats
-# Provides comprehensive error reporting
+# Usage Examples:
+# python script.py image.jpg
+# python script.py batch /path/to/images/
