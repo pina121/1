@@ -1,2 +1,4 @@
-rembg
-Flask
+Flask==2.0.1
+rembg==2.0.50
+Pillow==9.5.0
+Werkzeug==2.0.1
