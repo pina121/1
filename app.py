@@ -1,39 +1,51 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, send_file, render_template
 from rembg import remove
+from io import BytesIO
 import os
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB limit
 
-@app.route('/', methods=['GET'])
+# Configure upload folder
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+@app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return 'No file uploaded', 400
+@app.route('/remove-bg', methods=['POST'])
+def remove_background():
+    if 'image' not in request.files:
+        return 'No image uploaded', 400
     
-    file = request.files['file']
+    file = request.files['image']
     if file.filename == '':
         return 'No selected file', 400
+
+    # Check file extension
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+    file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if file_ext not in allowed_extensions:
+        return f'Invalid file format. Allowed formats: {", ".join(allowed_extensions)}', 400
+
+    try:
+        # Read and process the image
+        input_image = file.read()
+        output_image = remove(input_image)
+        
+        # Prepare the processed image for download
+        output = BytesIO(output_image)
+        output.seek(0)
+    except Exception as e:
+        return f'Error processing image: {str(e)}', 400
     
-    if file:
-        input_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        output_path = 'output.png'
-        
-        file.save(input_path)
-        
-        with open(input_path, 'rb') as i:
-            input_image = i.read()
-            output = remove(input_image)
-            
-        with open(output_path, 'wb') as o:
-            o.write(output)
-        
-        return send_file(output_path, mimetype='image/png')
+    return send_file(
+        output,
+        mimetype='image/png',
+        as_attachment=True,
+        download_name='output.png'
+    )
 
 if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     app.run(debug=True)
