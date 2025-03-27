@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Background Removal Tool</title>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <title>Background Remover</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,111 +12,74 @@
             padding: 20px;
             text-align: center;
         }
-        #preview, #result {
+        .upload-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .preview {
             max-width: 100%;
             margin: 20px 0;
         }
-        .hidden {
-            display: none;
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #45a049;
         }
         #loading {
             display: none;
-            color: blue;
-            margin: 20px 0;
-        }
-        #error {
-            color: red;
             margin: 20px 0;
         }
     </style>
 </head>
 <body>
-    <h1>Background Removal Tool</h1>
-    
-    <input type="file" id="imageUpload" accept="image/*">
-    
-    <div id="loading">Processing... Please wait</div>
-    <div id="error" class="hidden"></div>
-    
-    <img id="preview" class="hidden" alt="Preview">
-    <img id="result" class="hidden" alt="Result">
-    
-    <div>
-        <button id="removeButton" class="hidden">Remove Background</button>
-        <button id="downloadButton" class="hidden">Download Result</button>
+    <h1>Background Remover Tool</h1>
+    <div class="upload-container">
+        <form id="uploadForm" action="/remove-bg" method="post" enctype="multipart/form-data">
+            <input type="file" name="image" accept="image/*" required>
+            <button type="submit" class="btn">Remove Background</button>
+        </form>
     </div>
-
+    <div id="loading">Processing image...</div>
+    <div id="result" style="display: none;">
+        <h3>Processed Image</h3>
+        <a id="download-link" class="btn" download="output.png">Download Image</a>
+    </div>
     <script>
-        const imageUpload = document.getElementById('imageUpload');
-        const preview = document.getElementById('preview');
-        const result = document.getElementById('result');
-        const removeButton = document.getElementById('removeButton');
-        const downloadButton = document.getElementById('downloadButton');
-        const loading = document.getElementById('loading');
-        const errorDiv = document.getElementById('error');
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const downloadLink = document.getElementById('download-link');
 
-        // Remove.bg API key (replace with your own)
-        const REMOVE_BG_API_KEY = 'YOUR_REMOVE_BG_API_KEY';
+            loading.style.display = 'block';
+            result.style.display = 'none';
 
-        imageUpload.addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                    removeButton.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        removeButton.addEventListener('click', async function() {
-            try {
-                // Show loading state
-                loading.style.display = 'block';
-                errorDiv.classList.add('hidden');
-                removeButton.disabled = true;
-
-                // Read the uploaded image
-                const file = imageUpload.files[0];
-                const formData = new FormData();
-                formData.append('image_file', file);
-                formData.append('size', 'auto');
-
-                // Call Remove.bg API
-                const response = await axios.post('https://api.remove.bg/v1.0/removebg', formData, {
-                    headers: {
-                        'X-Api-Key': REMOVE_BG_API_KEY,
-                        'Content-Type': 'multipart/form-data'
-                    },
-                    responseType: 'blob'
-                });
-
-                // Create blob URL for the result
-                const resultBlob = new Blob([response.data], { type: 'image/png' });
-                const resultUrl = URL.createObjectURL(resultBlob);
-                
-                // Display and prepare result
-                result.src = resultUrl;
-                result.classList.remove('hidden');
-                downloadButton.classList.remove('hidden');
-                downloadButton.onclick = () => {
-                    const link = document.createElement('a');
-                    link.href = resultUrl;
-                    link.download = 'background-removed.png';
-                    link.click();
-                };
-            } catch (error) {
-                console.error('Error removing background:', error);
-                errorDiv.textContent = 'Failed to remove background. Please try again.';
-                errorDiv.classList.remove('hidden');
-            } finally {
-                // Hide loading state
+            fetch('/remove-bg', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
                 loading.style.display = 'none';
-                removeButton.disabled = false;
-            }
-        });
+                result.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                loading.style.display = 'none';
+                alert('An error occurred while processing the image.');
+            });
+        };
     </script>
 </body>
 </html>
