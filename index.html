@@ -5,6 +5,9 @@
 </head>
 <body>
     <h1>Remove Background</h1>
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
     <form method="POST" enctype="multipart/form-data">
         <input type="file" name="file">
         <input type="submit" value="Upload and Remove Background">
