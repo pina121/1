@@ -1,170 +1,39 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM Elements
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('file-input');
-    const selectBtn = document.getElementById('select-btn');
-    const loadingElement = document.getElementById('loading');
-    const previewContainer = document.getElementById('preview-container');
-    const originalPreview = document.getElementById('original-preview');
-    const resultPreview = document.getElementById('result-preview');
-    const downloadBtn = document.getElementById('download-btn');
-    const newImageBtn = document.getElementById('new-image-btn');
+// This is a simplified version - in reality, you'd need to:
+// 1. Use a WASM-compiled version of rembg or
+// 2. Connect to a backend service that runs rembg
+
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
     
-    // Event Listeners
-    uploadArea.addEventListener('click', function() {
-        fileInput.click();
-    });
-    
-    selectBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        fileInput.click();
-    });
-    
-    // Drag and drop functionality
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, highlight, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, unhighlight, false);
-    });
-    
-    function highlight() {
-        uploadArea.classList.add('highlight');
-    }
-    
-    function unhighlight() {
-        uploadArea.classList.remove('highlight');
-    }
-    
-    uploadArea.addEventListener('drop', handleDrop, false);
-    
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length) {
-            handleFiles(files);
-        }
-    }
-    
-    fileInput.addEventListener('change', function() {
-        if (fileInput.files.length) {
-            handleFiles(fileInput.files);
-        }
-    });
-    
-    function handleFiles(files) {
-        const file = files[0];
-        if (!file.type.match('image.*')) {
-            alert('Please select an image file');
-            return;
-        }
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const originalImage = document.getElementById('originalImage');
+        originalImage.src = event.target.result;
+        originalImage.style.display = 'block';
         
-        // Display original image
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            originalPreview.src = e.target.result;
-            // Show loading and hide upload area
-            uploadArea.classList.add('hidden');
-            loadingElement.classList.remove('hidden');
-            
-            // Send image to backend for processing
-            processImage(file);
-        };
-        reader.readAsDataURL(file);
-    }
-    
-    function processImage(file) {
-        const formData = new FormData();
-        formData.append('image', file);
+        // In a real implementation, you would process the image here
+        // For now, we'll just display the original as a placeholder
+        document.getElementById('resultImage').src = event.target.result;
+        document.getElementById('downloadBtn').disabled = false;
         
-        // Send the image to our backend API
-        fetch('/process-image', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Display the processed image
-                resultPreview.src = data.image;
-                
-                // Hide loading and show preview
-                loadingElement.classList.add('hidden');
-                previewContainer.classList.remove('hidden');
-                
-                // Enable download button
-                downloadBtn.disabled = false;
-            } else {
-                throw new Error(data.error || 'Unknown error occurred');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error processing image: ' + error.message);
-            
-            // Reset UI
-            loadingElement.classList.add('hidden');
-            uploadArea.classList.remove('hidden');
-        });
-    }
-    
-    // Download button functionality
-    downloadBtn.addEventListener('click', function() {
-        // Use the backend API to download the processed image
-        fetch('/download-image', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                image: resultPreview.src
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.blob();
-        })
-        .then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'background-removed.png';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error downloading image: ' + error.message);
-        });
-    });
-    
-    // New image button functionality
-    newImageBtn.addEventListener('click', function() {
-        // Reset the UI
-        uploadArea.classList.remove('hidden');
-        previewContainer.classList.add('hidden');
-        fileInput.value = '';
-        originalPreview.src = '';
-        resultPreview.src = '';
-        downloadBtn.disabled = true;
-    });
+        // Actual rembg processing would happen here
+        // processWithRembg(event.target.result);
+    };
+    reader.readAsDataURL(file);
 });
+
+document.getElementById('downloadBtn').addEventListener('click', function() {
+    const link = document.createElement('a');
+    link.download = 'background-removed.png';
+    link.href = document.getElementById('resultImage').src;
+    link.click();
+});
+
+async function processWithRembg(imageData) {
+    // This is where you would implement the actual background removal
+    // For a real implementation, you would need to either:
+    // 1. Use a WASM version of rembg (if available)
+    // 2. Send the image to a backend service that runs rembg
+    console.log("Processing image...");
+}
