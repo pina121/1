@@ -1,47 +1,28 @@
-import os
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, jsonify
 from rembg import remove
-from PIL import Image
+import base64
 from io import BytesIO
+from PIL import Image
 
 app = Flask(__name__)
 
-# Configure upload folder
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/remove-background', methods=['GET', 'POST'])
-def remove_background():
-    if request.method == 'GET':
-        return render_template('index.html')
-        
-    if 'file' not in request.files:
-        return 'No file uploaded', 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return 'No file selected', 400
-
-    # Process the image
-    input_image = file.read()
+@app.route('/remove-bg', methods=['POST'])
+def remove_bg():
     try:
-        # Remove background
-        output = remove(input_image)
+        # Get image data from POST request
+        image_data = request.files['image'].read()
         
-        # Return the processed image
-        return send_file(
-            BytesIO(output),
-            mimetype='image/png',
-            as_attachment=True,
-            download_name='output.png'
-        )
+        # Remove background
+        output = remove(image_data)
+        
+        # Convert to base64 for returning to frontend
+        buffered = BytesIO()
+        Image.open(BytesIO(output)).save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return jsonify({'result': img_str})
     except Exception as e:
-        return str(e), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
