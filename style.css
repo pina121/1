@@ -1,0 +1,38 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.container {
+    text-align: center;
+}
+
+.result-container {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+}
+
+.image-box {
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+img {
+    max-width: 300px;
+    max-height: 300px;
+}
+
+button, input[type="file"] {
+    padding: 10px 15px;
+    margin: 10px;
+    cursor: pointer;
+}
+
+.note {
+    font-size: 0.8em;
+    color: #666;
+}
